@@ -7,12 +7,14 @@
 #include "fcntl.h"
 #include "stdlib.h"
 #include "string.h"
+#include<signal.h>
 
 #include "./structures.c"
 
 typedef struct account account;
 
 typedef struct transaction trans;
+int serverfd;
 
 int getslfromaccno(long accno)
 {
@@ -47,25 +49,34 @@ int getfreespace(long accno)
 	return count--; 
 }
 
+void handler(int sig){
+    printf("\nSIGINT has been caught with number: %d\n", sig);
+    shutdown(serverfd, SHUT_RDWR);
+    close(serverfd);
+    exit(0);
+}
+
 int main(int argc, char const *argv[])
 {
+	signal(SIGINT, handler);
 	struct sockaddr_in server, client; 
-	int serverfd, sz, clientfd; 
+	int sz, clientfd; 
 	serverfd = socket(AF_UNIX, SOCK_STREAM, 0); 
 
 	server.sin_family = AF_UNIX; 
 	server.sin_addr.s_addr=INADDR_ANY; 
-	server.sin_port=htons(8001);
-
-	if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
+	server.sin_port=htons(8014);
+	int truee= 1;
+	if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &(int){truee}, sizeof(int)) < 0)
     {
     	printf("setsockopt(SO_REUSEADDR) failed");
     	return 0;
     }
-
+    perror("\nSocket Created: ");
 	bind(serverfd, (void *)(&server), sizeof(server)); 
-
+	perror("\nBind : ");
 	listen(serverfd, 5); 
+	perror("\nServer Listening: ");
 	int cli_size = sizeof(client); 
 	
 	while(1)
@@ -75,7 +86,8 @@ int main(int argc, char const *argv[])
 		if(!fork())
 		{
 			close(serverfd); 
-			account acccli, accser;
+
+			account acccli, accser, temp;
 			
 			read(clientfd, &acccli, sizeof(acccli)); //reading the details from client side and store in acccli.
 			
@@ -86,7 +98,7 @@ int main(int argc, char const *argv[])
 			if(strcmp(acccli.action,"LOGIN")==0) //verifying if the action is login or not		
 			{ 
 
-				int fd = open("account", O_RDONLY); //opening the account file for reading the details for verification
+				int fd = open("account", O_RDWR); //opening the account file for reading the details for verification
 				
 				read(fd, &accser, sizeof(accser)); 
 				
@@ -113,8 +125,26 @@ int main(int argc, char const *argv[])
 						lseek(fd, slno*sizeof(account), SEEK_SET); 
 						read(fd, &accser, sizeof(accser)); 
 						if(acccli.acc_no==accser.acc_no && strcmp(acccli.password,accser.password)==0 && accser.usertype==acccli.usertype)
-						{		
-							acccli.result = 1; printf("User login success \n");	
+						{	
+							if(accser.usertype ==2) {
+								printf("%s\n",accser.action);
+								if(strcmp(accser.action, "LLOCK") == 0) {
+									acccli.result = -2; printf("User login failure \n"); 
+								}
+								else{
+									strcpy(accser.action, "LLOCK");
+									lseek(fd, (-1)*sizeof(account), SEEK_CUR); 
+									write(fd, &accser, sizeof(accser));
+									perror("stat");
+									lseek(fd, (-1)*sizeof(account), SEEK_CUR); 
+									read(fd, &temp, sizeof(accser));
+									printf("%s\n", temp.action);
+
+									acccli.result = 1; printf("User login success \n");
+								}
+								printf("%s\n",accser.action );
+							}	
+							else{acccli.result = 1; printf("User login success \n");	}
 						} 
 						else 
 						{ 
@@ -359,25 +389,30 @@ int main(int argc, char const *argv[])
 					acccli.result = 1; 
 				}
 				
-				struct flock lock;
+				// struct flock lock;
 
-				lock.l_type = F_WRLCK;
-				lock.l_whence = SEEK_CUR;
-				lock.l_start = 0;
-				lock.l_len = sizeof(account);
-				lock.l_pid = getpid();
-				
-				//printf("Before entering critical section\n");
-				fcntl(fd, F_SETLKW, &lock);
-				
-				
+				// lock.l_type = F_WRLCK;
+				// lock.l_whence = SEEK_SET;
+				// lock.l_start = 0;
+				// lock.l_len = 0;
+				// lock.l_pid = getpid();
+				// printf("Lock taken by: %d\n",getpid());
+				// printf("Before entering critical section\n");
+				// int retval = fcntl(fd, F_SETLK, &lock);
+				// perror("taking lock: ");
+				// printf("%d\n", retval);
+				// if(retval == -1){
+				// 	acccli.result = 0;
+				// }
+				// acccli.result =1;
+
 				write(clientfd, &acccli, sizeof(acccli)); 
 			}
 			
 			if(strcmp(acccli.action,"RLOCK")==0){//////////////////////////////////////READ_LOCK
 				//printf("%s",acccli.action);
 				int fd = open("account", O_RDWR);
-				
+				perror("file open status: ");
 				int slno = getslfromaccno(acccli.acc_no); 
 				
 				lseek(fd, slno*sizeof(account), SEEK_SET); 
@@ -399,18 +434,22 @@ int main(int argc, char const *argv[])
 					acccli.result = 1; 
 				}
 				
-				struct flock lock;
 
-				lock.l_type = F_RDLCK;
-				lock.l_whence = SEEK_CUR;
-				lock.l_start = 0;
-				lock.l_len = sizeof(account);
-				lock.l_pid = getpid();
-				
-				//printf("Before entering critical section\n");
-				fcntl(fd, F_SETLKW, &lock);
-				
-				
+				// struct flock lock;
+
+				// lock.l_type = F_WRLCK;
+				// lock.l_whence = SEEK_SET;
+				// lock.l_start = 0;
+				// lock.l_len = 0;
+				// lock.l_pid = getpid();
+				// printf("Lock taken by: %d\n",getpid());
+				// printf("Before entering critical section\n");
+				// int retval = fcntl(fd, F_SETLK, &lock);
+				// perror("taking lock: ");
+				// if(retval == -1){
+				// 	acccli.result = 0;
+				// }
+				// acccli.result =1;
 				write(clientfd, &acccli, sizeof(acccli)); 
 			}
 

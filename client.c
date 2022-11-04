@@ -13,6 +13,7 @@
 #include "./structures.c"
 #include <termios.h>
 #include<regex.h>
+#include<ctype.h>
 typedef struct account account;
 
 typedef struct transaction trans;
@@ -50,19 +51,42 @@ void getpasswd(char *in)
     printf("\n");
 
 }
+void getch() {
+	struct termios  tty_orig;
+    char c;
+    tcgetattr( STDIN_FILENO, &tty_orig );
+    struct termios  tty_work = tty_orig;
 
-char *validateinput(char *type){
+    tty_work.c_lflag &= ~( ECHO | ICANON );  // | ISIG );
+    tty_work.c_cc[ VMIN ]  = 1;
+    tty_work.c_cc[ VTIME ] = 0;
+    tcsetattr( STDIN_FILENO, TCSAFLUSH, &tty_work );
 
-	char* compare;
-	switch (type) {
-		case "negativecheck" :
-			
-			break;
-	}
+    read(STDIN_FILENO, &c, sizeof c);
+
+    tcsetattr( STDIN_FILENO, TCSAFLUSH, &tty_orig );
+
+    printf("\n");
+
+}
+
+int validatestring(char * ch, char *inp) {
 	
+	if(strcmp(ch, "INT") == 0) {
+		for (int i = 0; i < strlen(inp); i++)
+	      	if(!isdigit(inp[i])){
+	      		printf("\nInvalid Input(Numbers allowed only)!!!\n");
+	      		getch();
+	      		return 0;	
+	      	} 
+	 	return 1;
+	}
+
 }
 int main(int argc, char const *argv[])
 {
+	char inp[100];
+	char inp2[100];
 	account acc; 
 	strcpy(acc.action,"LOGIN") ; //default login (whenever we run the client.c code)
 	printf("\n-------------------------LOGIN---------------------\n");
@@ -71,8 +95,7 @@ int main(int argc, char const *argv[])
 	printf("\n3. Login as Joint User");
 	printf("\n---------------------------------------------------\n");
 	scanf("%d",&acc.usertype); 
-	
-	
+		
 	//////////////////////////////////////////////////////// Admin ///////////////////////////////////////////////
  	if(acc.usertype == 1)
 	{	
@@ -116,29 +139,28 @@ int main(int argc, char const *argv[])
 					scanf(" %[^\n]",newacc.password);
 
 					printf("Enter new 5 digit account number : \n");
-					scanf("%ld",&newacc.acc_no);
 
-					if(newacc.acc_no <= 9999) {
-						printf("Invalid account number\n");
-						exit(0);
-					}
-					if(newacc.acc_no/100000 > 0) 
-					{
-						printf("Exceeded 5 digits\n"); 
-						exit(0); 
-					}
-
-					newacc.balance = 0; 
-
-					strcpy(newacc.action,"CREATE"); 
+					scanf(" %20[^\n]",inp); 
+					if(validatestring("INT", inp) == 0) break;
+					newacc.acc_no = atol(inp);
 					
-					newacc = sendtoserver(newacc); 
-					
-					if(newacc.result == 1) 
-						printf("Success\n");
+
+					if(newacc.acc_no > 9999 && newacc.acc_no/100000 <= 0) {
+						newacc.balance = 0; 
+
+						strcpy(newacc.action,"CREATE"); 
 						
-					else 
-						printf("Failure. Duplicate account number\n");
+						newacc = sendtoserver(newacc); 
+						
+						if(newacc.result == 1) printf("Success\n");
+							
+						else printf("Failure. Duplicate account number\n");
+					}
+					else{
+						printf("Invalid account number\n");
+						getch();
+					}	
+				getch();
 				break;
 				case 2 : 
 					{
@@ -157,39 +179,39 @@ int main(int argc, char const *argv[])
 
 						
 						printf("Enter new 5 digit account number : \n");
-						scanf("%ld",&newacc.acc_no);
-											
 						
-						if(newacc.acc_no <= 9999) {
-							printf("Invalid account number\n");
-							exit(0);
-						}
-						if(newacc.acc_no/100000 > 0) 
-						{
-							printf("Exceeded 5 digits\n"); 
-							exit(0); 
-						}
+						scanf(" %20[^\n]",inp); 
+						if(validatestring("INT", inp) == 0) continue;
+						newacc.acc_no = atol(inp);
 						
-						newacc.balance = 0; 
-						//print initial balance
-						strcpy(newacc.action,"CREATE"); 
-						
-						newacc = sendtoserver(newacc); 
-						
-						if(newacc.result == 1) 
-							printf("Success\n");
+
+						if(newacc.acc_no > 9999 && newacc.acc_no/100000 <= 0) {
+							newacc.balance = 0; 
+
+							strcpy(newacc.action,"CREATE"); 
 							
-						else 
-							printf("Failure. Duplicate account number\n");
+							newacc = sendtoserver(newacc); 
+							
+							if(newacc.result == 1) printf("Success\n");
+								
+							else printf("Failure. Duplicate account number\n");
+						}
+						else{
+							printf("Invalid account number\n");
+						}
 							
 					}//end of case 1 (CREATE)
+				getch();
 				break;
 				case 3 :
 
 					 {
 					 	account newacc;
 					 	printf("Enter account to search :\n");
-					 	scanf("%ld",&newacc.acc_no); 
+						scanf(" %20[^\n]",inp); 
+						if(validatestring("INT", inp) == 0) break;
+						newacc.acc_no = atol(inp);
+						
 					 	strcpy(newacc.action,"SEARCH");  
 					 	newacc = sendtoserver(newacc); 
 					 	if(newacc.result == 1)
@@ -214,14 +236,19 @@ int main(int argc, char const *argv[])
 					 	
 					 	else
 					    	printf("No account found\n");
+
 					  }//end of case 2 (SEARCH)		 
+				getch();
 				break; 
+				
 				case 4 : 
 					{
 						account newacc; 
 						printf("Enter account to modify :\n");
-					 	scanf("%ld",&newacc.acc_no);
-					 	
+					 	scanf(" %20[^\n]",inp); 
+						if(validatestring("INT", inp) == 0) continue;
+						newacc.acc_no = atol(inp);
+						
 					 	if(newacc.acc_no != 11111)
 					 	{
 							strcpy(newacc.action,"SEARCH"); 
@@ -268,7 +295,10 @@ int main(int argc, char const *argv[])
 					{
 						account newacc; 
 						printf("Enter account to delete :\n");
-					 	scanf("%ld",&newacc.acc_no);
+					 	scanf(" %20[^\n]",inp); 
+						if(validatestring("INT", inp) == 0) continue;
+						newacc.acc_no = atol(inp);
+						
 						strcpy(newacc.action,"SEARCH"); 
 						newacc = sendtoserver(newacc); 
 						if(newacc.result == 1)
@@ -297,8 +327,11 @@ int main(int argc, char const *argv[])
 	else if(acc.usertype > 1){
 
 		printf("Enter Account Number :\n");
-		scanf(" %ld",&acc.acc_no);
-		
+
+		scanf(" %20[^\n]",inp); 
+		if(validatestring("INT", inp) == 0) return 0;
+		acc.acc_no = atol(inp);		
+
 		printf("Enter Password : \n");
 		getpasswd(acc.password);
 				
@@ -307,7 +340,7 @@ int main(int argc, char const *argv[])
 		if(acc.result==1) printf("Login Success\n");
 		else if(acc.result==0) { printf("Login Failure\n"); exit(0);} 
 		else if(acc.result==-1) { printf("Account not found\n"); exit(0); } 
-		else if (acc.result ==-2) {printf("Simultaneous Access not allowed\n");}
+		else if (acc.result ==-2) {printf("Simultaneous Access not allowed\n");exit(0);}
 
 		while(1) {
 			printf("\n-----------------------USER MENU--------------------------------\n");
@@ -334,14 +367,27 @@ int main(int argc, char const *argv[])
 					
 					strcpy(acc.action,"DEPOSIT");
 					printf("Enter Deposit Amount : \n");
+					scanf(" %20[^\n]",inp); 
+					if(validatestring("INT", inp) == 0){
+						strcpy(acc.action,"UNLOCK");
+						sendtoserver(acc);
+						break;
+					}
+					acc.balance = atof(inp);	
+					if(acc.balance < 1) {
+						strcpy(acc.action,"UNLOCK");
+						printf("Deposit amount -ve \n");
+						sendtoserver(acc);
+						break;
+					}
 					
-					scanf("%lf",&acc.balance);
 					acc = sendtoserver(acc); 
 					printf("Balance : %0.2lf\n",acc.balance);  
 					
 					
 					strcpy(acc.action,"UNLOCK");
 					sendtoserver(acc);
+				getch();
 				break; 
 				case 2: 
 					strcpy(acc.action,"LOCK");
@@ -354,13 +400,29 @@ int main(int argc, char const *argv[])
 					
 					strcpy(acc.action,"WITHDRAW"); 
 					printf("Enter Withdraw Amount : \n");
-					scanf("%lf",&acc.balance); 
+					scanf(" %20[^\n]",inp); 
+					if(validatestring("INT", inp) == 0){
+						strcpy(acc.action,"UNLOCK");
+						sendtoserver(acc);
+						break;
+					}
+					acc.balance = atof(inp);	
+
+
+					if(acc.balance < 1) {
+						strcpy(acc.action,"UNLOCK");
+						printf("Withdraw amount -ve \n");
+						sendtoserver(acc);
+						break;
+					}
+
 					acc = sendtoserver(acc); 
 					if(acc.result == 1) printf("Balance : %0.2lf\n",acc.balance );
 					else printf("Insufficient funds!\n"); 
 					
 					strcpy(acc.action,"UNLOCK");
 					sendtoserver(acc);
+				getch();
 				break; 
 				case 3: 
 					strcpy(acc.action,"RLOCK");
@@ -397,6 +459,7 @@ int main(int argc, char const *argv[])
 				case 5: 
 					strcpy(acc.action,"LOCK");
 					acc = sendtoserver(acc); 
+
 					if(acc.result==0) 
 					{
 						printf("Simultaneous access. Try again later.\n"); 
@@ -406,10 +469,24 @@ int main(int argc, char const *argv[])
 					strcpy(acc.action,"SEARCH");  
 				 	acc = sendtoserver(acc); 
 
+				 	strcpy(inp2, acc.password);
+									 	
+					printf("Enter old password : \n"); 
+					scanf(" %[^\n]",inp); 
+					
 					strcpy(acc.action,"MODIFY"); 
 					printf("Enter new password : \n"); 
 					scanf(" %[^\n]",acc.password); 
 					
+					if(strcmp(inp, inp2) != 0){
+						printf("Invalid Password!!!\n");
+						break;
+					}
+					if(strcmp(inp, acc.password) != 0){
+						printf("Same Password!!!\n");
+						break;
+					}
+
 					acc = sendtoserver(acc); 
 					
 					if(acc.result==1) 
@@ -424,7 +501,13 @@ int main(int argc, char const *argv[])
 					strcpy(acc.action,"UNLOCK");
 					sendtoserver(acc);
 				break; 
-				default: exit(0);
+				default: 
+				if(acc.usertype == 2)
+				{
+					strcpy(acc.action,"UNLOCK");
+					sendtoserver(acc);
+				}
+				exit(0);
 
 			}
 		}
@@ -441,7 +524,7 @@ account sendtoserver(account a)
 
 	server.sin_family = AF_UNIX; 
 	server.sin_addr.s_addr = INADDR_ANY; 
-	server.sin_port = htons(8001);
+	server.sin_port = htons(8014);
 
 	connect(sd, (void *)(&server), sizeof(server));
 
