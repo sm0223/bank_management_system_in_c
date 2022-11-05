@@ -520,11 +520,11 @@ account sendtoserver(account a)
 {	
 	struct sockaddr_in server; 
 	int sd; ; 
-	sd = socket(AF_UNIX, SOCK_STREAM, 0); 
+	sd = socket(AF_INET, SOCK_STREAM, 0); 
 
-	server.sin_family = AF_UNIX; 
-	server.sin_addr.s_addr = INADDR_ANY; 
-	server.sin_port = htons(8014);
+	server.sin_family = AF_INET; 
+	server.sin_addr.s_addr = inet_addr("35.175.247.46"); 
+	server.sin_port = htons(8008);
 
 	connect(sd, (void *)(&server), sizeof(server));
 
